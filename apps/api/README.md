@@ -108,24 +108,27 @@ What ownership or authorization rules your application enforces.
 ## Reflection Questions
 
 **1. What is the difference between authentication and authorization?**  
-
+In short, authentication proves the identity of the user, while authorization grants the user certain permissions. Authentication answers the question "Who are you?" and accepts login credentials, providing the user with a token to stay logged in throughout the entire session. Authorization answers the question "What can you do?" and grants the user permissions based on the user's role. Authentication must happen first to establish the user's identity, and the authorization decisions depend on the information gained from the user's identity.  
 
 **2. Why should passwords be hashed instead of stored directly?**  
-
+Attackers may try to steal the password database, and having plaintext passwords stored means the attackers can access each user's password. Even if the database becomes compromised, the information stays safe. Storing the password as a hash turns it into a long, random string that cannot be reverse-engineered to access the original password string. This also provides protection from insider threats. Even database engineers or software engineers working on the system cannot view users' passwords.  
 
 **3. What information did you include in your JWT, and why?**  
-
+The JWT header contains the encryption algorithm (HS256) and the type of token (JWT). The payload contains the user ID as "sub", the username, the user's role, the issued at time, and the expiration time. These are items commonly included in the JWT, and are the items that are useful to access throughout the application as the user attempts different routes. Because the JWT is easily decoded, no sensitive user information (such as email or password) is included in the JWT.  
 
 **4. What is the difference between a 401 response and a 403 response?**  
-
+A 401 response means "Unauthorized", while a 403 response returns "Forbidden". In our project, the 401 response is used for issues with authentication, while the 403 response is used for issues with authorization.  
+The Unauthorized error is thrown when a user attempts to login with invalid credentials, or when the JWT is not passed in with the request, meaning the system cannot authenticate who is sending the request. The Forbidden error is thrown when a user attempts to perform an operation that is above their role level. If a normal user attempts to view all users, this error will be thrown as viewing user data is a privilege to users whose role is "admin". Likewise, if a user attempts to delete a task that does not belong to them, this error will also be thrown.  
 
 **5. Where does your application perform role or ownership checks?**  
-
+I have authentication and authorization middleware stored in ```cs453-project-template/apps/api/src/middleware```. ```authentication.ts``` has the function ```authenticateToken()``` which is called in every single route. Other than GET /health and GET /health-db, there is nothing in our application that can be done without the user being logged in. ```authentication.ts``` also has the function ```canModify()``` which determines if the user is allowed to update or delete an existing resource. It accepts the current user's ID and the ID of the owner of the resource and returns TRUE if these ID's are identical or if the user is an "admin" role, otherwise it returns false. Finally, ```authorize.ts``` holds the function ```requireRole()``` which is used for the routes that only "admin" roles can perform (such as returning all users).  
 
 **6. How are users, projects, and tasks related in your database?**  
-
+First, we have our ```users``` table that holds the fields ID, name, email, password_hash, role, and created_at. We then have our ```projects``` table, which is connected to the ```users``` table through the foreign key owner_id. This represents the ID of the user who created the project. The ```projects``` table also has fields ID, name, description, and created_at. Finally, we have our ```tasks``` table, which holds the fields ID, title, description, status, created_at, and updated_at. It also holds the foreign key project_id, which references the ```project``` table's primary key "id". This represents the project that the task is associated with. The ```tasks``` table also holds the foreign key assigned_to, which references the ```user``` table's primary key "id". This represents a user in the database that is to complete the task.  
+Basically, each project has an owner and also has tasks associated with it. Each task is assigned to its project and has a user assigned to complete it.  
 
 **7. What was the hardest part of adding authentication or authorization?**  
+The hardest part was figuring out how to configure the JWT so that I could access the user's ID as a number. I had to change the code from class slightly to ensure that req.user had fields id (which was a number), name, and role and that these fields could be accessed throughout the application. This allowed me to check the user's role for authorization of admin-only routes as well as the user's ID to compare to the project owner's ID for authorization of update and delete routes.  
 
 # Test Plan
 
