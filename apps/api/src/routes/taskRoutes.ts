@@ -1,7 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { TaskService } from "../services/taskService";
-import { BadRequestError } from '../errors';
-import { authenticateToken } from '../middleware/authentication';
+import { BadRequestError, ForbiddenError, UnauthorizedError } from '../errors';
+import { authenticateToken, canModify } from '../middleware/authentication';
+import { ProjectService } from '../services/projectService';
 
 const router = Router();
 
@@ -15,8 +16,9 @@ router.get('/', authenticateToken, async (req: Request, res: Response, next: Nex
 });
 
 router.get('/:id', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    const requestedID = Number(req.params.id);
     try {
+        const requestedID = Number(req.params.id);
+
         const result = await TaskService.getTaskByID(requestedID);
         res.status(200).json(result);
     } catch (error) {
@@ -25,12 +27,13 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response, next: 
 });
 
 router.post('/', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    const title = req.body?.title?.trim();
-    const description = req.body?.description?.trim();
-    const status = req.body?.status?.trim();
-    const projectID = req.body?.project_id?.trim();
-    const assignedTo = req.body?.assigned_to?.trim();
     try {
+        const title = req.body?.title?.trim();
+        const description = req.body?.description?.trim();
+        const status = req.body?.status?.trim();
+        const projectID = req.body?.project_id?.trim();
+        const assignedTo = req.body?.assigned_to?.trim();
+
         const result = await TaskService.createTask(title, description, status, projectID, assignedTo);
         res.status(201).json(result);
     } catch (error) {
@@ -39,8 +42,16 @@ router.post('/', authenticateToken, async (req: Request, res: Response, next: Ne
 });
 
 router.patch('/:id', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    const requestedID = Number(req.params.id);
     try {
+        const requestedID = Number(req.params.id);
+
+        // authorization
+        const task = await TaskService.getTaskByID(requestedID);
+        const project = await ProjectService.getProjectByID(task.project_id);
+        if(!canModify(req.user!, project.owner_id)) {
+            throw new ForbiddenError("You do not have permission to update this task.");
+        }
+        
         if ("title" in req.body) {
             const title = req.body?.title?.trim();
             if (!title) {
@@ -87,9 +98,17 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response, next
 });
 
 router.delete('/:id', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
-    const requestedID = Number(req.params.id);
     try {
-        const result = await TaskService.deleteTask(requestedID);
+        const requestedID = Number(req.params.id);
+
+        // authorization
+        const task = await TaskService.getTaskByID(requestedID);
+        const project = await ProjectService.getProjectByID(task.project_id);
+        if(!canModify(req.user!, project.owner_id)) {
+            throw new ForbiddenError("You do not have permission to delete this task.");
+        }
+
+        await TaskService.deleteTask(requestedID);
         res.status(204).json({ status: "Successfully deleted" });
     } catch (error) {
         next(error);

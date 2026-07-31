@@ -1,6 +1,12 @@
 import express, { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
+export interface AuthUser {
+  id: number;
+  email: string;
+  role: string;
+}
+
 export function authenticateToken(req: Request, res: Response, next: NextFunction) {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
@@ -27,4 +33,11 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
       message: "The access token is missing, invalid, or expired."
     });
   }
+}
+
+export const canModify = (user: AuthUser, resourceOwnerID: number): boolean => {
+  if (user.role === 'admin') {
+    return true;
+  }
+  return user.id === resourceOwnerID;
 }

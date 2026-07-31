@@ -6,11 +6,10 @@ import * as path from 'path';
 
 import { AppError } from './errors';
 
-import { requireRole } from "./middleware/authorize";
-
 import authRoutes from "./routes/authRoutes";
 import taskRoutes from "./routes/taskRoutes";
 import projectRoutes from "./routes/projectRoutes";
+import userRoutes from "./routes/userRoutes";
 
 export const app = express();
 
@@ -19,6 +18,7 @@ app.use(express.json());
 app.use("/auth", authRoutes);
 app.use("/tasks", taskRoutes);
 app.use("/projects", projectRoutes);
+app.use("/users", userRoutes);
 
 app.get("/health", (_req, res) => {
 	res.json({

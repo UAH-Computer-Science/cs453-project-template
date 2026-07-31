@@ -19,13 +19,19 @@ export class NotFoundError extends AppError {
 }
 
 export class UnauthorizedError extends AppError {
-    constructor(message = 'Unauthorized') {
-        super(401, message);
-    }
+  constructor(message = 'Unauthorized') {
+    super(401, message);
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(message = 'Forbidden') {
+    super(403, message);
+  }
 }
 
 export class InternalServerError extends AppError {
-    constructor(message = 'Internal Server Error') {
-        super(500, message);
-    }
+  constructor(message = 'Internal Server Error') {
+    super(500, message);
+  }
 }
