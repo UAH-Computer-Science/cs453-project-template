@@ -50,7 +50,7 @@ app.use((_req, res) => {
 
 async function initializeDatabase() {
   try {
-    await pool.query(`DROP TABLE tasks`);
+    // await pool.query(`DROP TABLE users CASCADE`);
     const filePath = path.join('../../database', 'schema.sql');
     const sql = fs.readFileSync(filePath, 'utf8');
     await pool.query(sql);
@@ -73,7 +73,6 @@ initializeDatabase()
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   if (err instanceof AppError) {
-    // Custom domain error (400, 404, 409, etc.)
     return res.status(err.statusCode).json({
       error: err.message,
     });

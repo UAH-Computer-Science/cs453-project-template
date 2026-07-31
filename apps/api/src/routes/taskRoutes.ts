@@ -47,8 +47,9 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response, next
 
         // authorization
         const task = await TaskService.getTaskByID(requestedID);
-        const project = await ProjectService.getProjectByID(task.project_id);
-        if(!canModify(req.user!, project.owner_id)) {
+        const project = await ProjectService.getProjectByID(task.projectID);
+        console.log(req.user!.id);
+        if(!canModify(req.user!.id, project.ownerID)) {
             throw new ForbiddenError("You do not have permission to update this task.");
         }
         
@@ -103,8 +104,8 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response, nex
 
         // authorization
         const task = await TaskService.getTaskByID(requestedID);
-        const project = await ProjectService.getProjectByID(task.project_id);
-        if(!canModify(req.user!, project.owner_id)) {
+        const project = await ProjectService.getProjectByID(task.projectID);
+        if(!canModify(req.user!.id, project.ownerID)) {
             throw new ForbiddenError("You do not have permission to delete this task.");
         }
 

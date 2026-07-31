@@ -26,7 +26,7 @@ export class AuthService {
             );
             return result.rows[0];
         } catch {
-            throw new InternalServerError("Failed to add item.");
+            throw new InternalServerError("Failed to register user.");
         }
     }
 
@@ -37,7 +37,7 @@ export class AuthService {
 
         try {
             const result = await pool.query(
-                "SELECT id, username, password_hash, role FROM users WHERE username = $1",
+                "SELECT id, name, password_hash, role FROM users WHERE name = $1",
                 [username]
             );
             const user = result.rows[0];
@@ -47,8 +47,11 @@ export class AuthService {
                 throw new UnauthorizedError("Invalid username or password.");
             }
             return user;
-        } catch {
-            throw new InternalServerError("Failed to add item.");
+        } catch (error) {
+            if (error instanceof UnauthorizedError) {
+                throw error;
+            }
+            throw new InternalServerError("Failed to login.");
         }
     }
 }

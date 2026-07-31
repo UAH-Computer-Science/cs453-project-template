@@ -6,10 +6,10 @@ export interface Task {
     title: string;
     description: string;
     status: string;
-    project_id: number;
-    assigned_to: number;
-    created_at: string;
-    updated_at: string;
+    projectID: number;
+    assignedTo: number;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export class TaskService {
@@ -56,6 +56,9 @@ export class TaskService {
 
             return result.rows[0];
         } catch (error) {
+            if (error instanceof NotFoundError) {
+                throw error;
+            }
             throw new InternalServerError("Failed to fetch task.")
         }
     }
@@ -101,6 +104,9 @@ export class TaskService {
 
             return result.rows[0];
         } catch (error) {
+            if (error instanceof BadRequestError) {
+                throw error;
+            }
             throw new InternalServerError("Failed to add item.");
         }
     }
@@ -120,6 +126,9 @@ export class TaskService {
             }
             return result.rows[0];
         } catch (error) {
+            if (error instanceof NotFoundError) {
+                throw error;
+            }
             throw new InternalServerError("Failed to update task.");
         }
     }
@@ -139,6 +148,9 @@ export class TaskService {
             }
             return result.rows[0];
         } catch (error) {
+            if (error instanceof NotFoundError) {
+                throw error;
+            }
             throw new InternalServerError("Failed to update task.");
         }
     }
@@ -158,6 +170,9 @@ export class TaskService {
             }
             return result.rows[0];
         } catch (error) {
+            if (error instanceof NotFoundError) {
+                throw error;
+            }
             throw new InternalServerError("Failed to update task.");
         }
     }
@@ -188,6 +203,9 @@ export class TaskService {
             }
             return result.rows[0];
         } catch (error) {
+            if (error instanceof BadRequestError || NotFoundError) {
+                throw error;
+            }
             throw new InternalServerError("Failed to update task.");
         }
     }
@@ -219,22 +237,43 @@ export class TaskService {
             }
             return result.rows[0];
         } catch (error) {
+            if (error instanceof BadRequestError || NotFoundError) {
+                throw error;
+            }
             throw new InternalServerError("Failed to update task.");
         }
     }
 
     static async deleteTask(requestedID: number) {
         try {
+            const task = await pool.query(
+                `SELECT id,
+                title,
+                description,
+                status,
+                project_id AS "projectID",
+                assigned_to AS "assignedTo",
+                created_at AS "createdAt",
+                updated_at AS "updatedAt"
+            FROM tasks
+            WHERE id = $1`,
+            [requestedID]
+            );
+
+            if (task.rows.length === 0) {
+                throw new NotFoundError("Task not found.")
+            }
+
             const result = await pool.query(
             `DELETE FROM tasks
             WHERE id = $1`,
             [requestedID]
             );
 
-            if (result.rows.length === 0) {
-                throw new NotFoundError("Task not found.");
-            }
         } catch (error) {
+            if (error instanceof NotFoundError) {
+                throw error;
+            }
             throw new InternalServerError("Failed to delete item.");
         }
     }
