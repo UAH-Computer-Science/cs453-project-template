@@ -27,6 +27,7 @@ npm run dev
 The server runs on ```http://localhost:3000```.   
 
 ## How to run tests  
+If vitest is installed, you can run the tests that cover Checkpoint 1.  
 In a different terminal also pointing to ```cs453-project-template/apps/api```
 ```bash
 npm test
@@ -84,25 +85,96 @@ I did not end up moving my logic out of the main server file. I was already havi
 # Checkpoint 2: Data Model, Authentication, Authorization
 
 This checkpoint covers:  
-Milestone 4 — Expand the Data Model
-Milestone 5 — Authentication
-Milestone 6 — Authorization and Ownership
+Milestone 4 — Expand the Data Model  
+Milestone 5 — Authentication  
+Milestone 6 — Authorization and Ownership  
 
-How to configure the JWT secret.
+## How to configure the JWT secret.  
+The JWT secret is configured in your .env file, which should live in the top folder of the project ```cs453-project-template```. I have included a .env.example file to show what should generally be in the .env file. The .env.example file has:
+```
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cs453
+PORT=3000
+JWT_SECRET=replace-this-value
+```
+When creating your .env file, you should replace the JWT_SECRET value "replace-this-value" with your own long, random string. This is for security purposes. A long, random string cannot be guessed easily by a malicious script trying to crack the secret value.  
 
-How to create or update the database tables.
+## How to create or update the database tables.  
+The user should run
+```bash
+docker compose down -v
+```
+in the ```cs453-project-template``` folder (the directory containing the ```docker-compose.yml``` file) before running the server as this completely resets the database. The database needed to be reset for Milestone 4 as more tables were added to the database and the ```tasks``` table was updated.
+After this command has been run, run 
+```bash
+docker compose up -d
+```
+to restart the database, and 
+```bash
+npm run dev
+```
+to start the server after, which automatically runs the ```schema.sql``` script to create the tables.
 
-How to create an administrator account.
+## How to create an administrator account.  
+The ```schema.sql``` script automatically creates an admin account for use in testing. The username is "admin" and the password is "admin-password".  
 
-How to register and log in.
+## How to register and log in.  
+Once the server is running, the user can use CURL commands to register and login. The route for registering is POST /auth/register, and the route for logging in is POST /auth/login. Registration requires a username, email, and password passed in as a JSON object, and logging in requires a registered username and password passed in as a JSON object. Example CURL commands are below:  
+Registration:  
+```bash
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name": "user", "email": "useremail@uah.edu", "password": "user-password"}'
+```
+Logging in:  
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "user", "password": "user-password"}'
+```
+After the user logs in, the application will send a Bearer token, which will allow the user to access the application.  
 
-How to send a JWT with a request.
+## How to send a JWT with a request.  
+Once you login and receive the Bearer token, you will use that for most of the remaining routes. The bearer is passed in the request with the -H modifier. Here is an example of a GET /tasks request using the bearer token:
+```bash
+curl -X GET http://localhost:3000/tasks \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+A POST or PATCH request requires more information, including another line with a -H modifier. Here is an example of a POST /projects request using the bearer token:
+```bash
+curl -X POST http://localhost:3000/projects \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -d '{"name": "Final", "description": "Final exam for CS553"}'
+```
+The user should replace ```YOUR_TOKEN_HERE``` with their JWT token they received upon logging in.  
 
-What user, project, and task routes are available.
+## What user, project, and task routes are available.  
+| Method | Route | Description |
+|---|---|---|
+| GET | `/health` | Health check |
+| GET | `/db-health` | Check database connection status |
+| GET | `/tasks` | *Return all tasks |
+| GET | `/tasks/:id` | *Return an existing task |
+| POST | `/tasks` | *Create a new task |
+| PATCH | `/tasks/:id` | *Update an existing task  |
+| DELETE | `/tasks/:id` | *Delete an existing task  |
+| GET | `/projects` | *Return all projects |
+| GET | `/projects/:id` | *Return an existing project |
+| POST | `/projects` | *Create a new project |
+| GET | `/users` | *Return all users (ADMIN ONLY) |
 
-Which routes or operations require the admin role.
+*Requires authentication
 
-What ownership or authorization rules your application enforces.
+## Which routes or operations require the admin role.  
+The only implemented route that requires the admin role is GET /users. Normal users aren't allowed to access the list of users. Admins, however, can modify and delete tasks that they don't own, a privilege that regular users do not have.
+
+## What ownership or authorization rules your application enforces.  
+* A normal user can create projects and tasks freely.
+* The user who creates a project becomes its owner.
+* A normal user can update or delete resources they own or are allowed to manage (tasks that belong to projects that the user owns).
+* A normal user cannot modify or delete another user’s project or protected resources (tasks that belong to projects that a different user owns).
+* An administrator may access or modify any project or task.
+* Only an administrator may view a list of all users.  
 
 
 ## Reflection Questions
@@ -121,7 +193,7 @@ A 401 response means "Unauthorized", while a 403 response returns "Forbidden". I
 The Unauthorized error is thrown when a user attempts to login with invalid credentials, or when the JWT is not passed in with the request, meaning the system cannot authenticate who is sending the request. The Forbidden error is thrown when a user attempts to perform an operation that is above their role level. If a normal user attempts to view all users, this error will be thrown as viewing user data is a privilege to users whose role is "admin". Likewise, if a user attempts to delete a task that does not belong to them, this error will also be thrown.  
 
 **5. Where does your application perform role or ownership checks?**  
-I have authentication and authorization middleware stored in ```cs453-project-template/apps/api/src/middleware```. ```authentication.ts``` has the function ```authenticateToken()``` which is called in every single route. Other than GET /health and GET /health-db, there is nothing in our application that can be done without the user being logged in. ```authentication.ts``` also has the function ```canModify()``` which determines if the user is allowed to update or delete an existing resource. It accepts the current user's ID and the ID of the owner of the resource and returns TRUE if these ID's are identical or if the user is an "admin" role, otherwise it returns false. Finally, ```authorize.ts``` holds the function ```requireRole()``` which is used for the routes that only "admin" roles can perform (such as returning all users).  
+I have authentication and authorization middleware stored in ```cs453-project-template/apps/api/src/middleware```. ```authentication.ts``` has the function ```authenticateToken()``` which is called in every single route. Other than GET /health, GET /health-db, POST /auth/register, and POST /auth/login, there is nothing in our application that can be done without the user being logged in. ```authentication.ts``` also has the function ```canModify()``` which determines if the user is allowed to update or delete an existing resource. It accepts the current user's ID and the ID of the owner of the resource and returns TRUE if these ID's are identical or if the user is an "admin" role, otherwise it returns false. Finally, ```authorize.ts``` holds the function ```requireRole()``` which is used for the routes that only "admin" roles can perform (such as returning all users).  
 
 **6. How are users, projects, and tasks related in your database?**  
 First, we have our ```users``` table that holds the fields ID, name, email, password_hash, role, and created_at. We then have our ```projects``` table, which is connected to the ```users``` table through the foreign key owner_id. This represents the ID of the user who created the project. The ```projects``` table also has fields ID, name, description, and created_at. Finally, we have our ```tasks``` table, which holds the fields ID, title, description, status, created_at, and updated_at. It also holds the foreign key project_id, which references the ```project``` table's primary key "id". This represents the project that the task is associated with. The ```tasks``` table also holds the foreign key assigned_to, which references the ```user``` table's primary key "id". This represents a user in the database that is to complete the task.  
@@ -168,14 +240,14 @@ Output:
 ```{"error":"Invalid username or password."}```
 <br><br><br>
 
-Register a user (POST /auth/login):
+Register a user (POST /auth/register):
 ```bash
 curl -X POST http://localhost:3000/auth/register \
   -H "Content-Type: application/json" \
   -d '{"name": "user", "email": "useremail@uah.edu", "password": "user-password"}'
 ```
 Output:  
-```{"id":1,"name":"user","role":"user","created_at":"2026-07-31T04:12:59.999Z"}```
+```{"id":2,"name":"user","role":"user","created_at":"2026-07-31T04:12:59.999Z"}```
 <br><br><br>
 
 Attempt a login with missing information (POST /auth/login):
@@ -195,14 +267,14 @@ curl -X POST http://localhost:3000/auth/login \
   -d '{"username": "user", "password": "user-password"}'
 ```
 Output:  
-```{"accessToken":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzE2NjksImV4cCI6MTc4NTQ3NTI2OX0.3Qb2UEqxcoMuK-qoK8EbnT5_IR-WRJgF17fzswX2hkQ","tokenType":"Bearer","expiresIn":"1h","user":{"id":1,"username":"user","role":"user"}}```
+```{"accessToken":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzE2NjksImV4cCI6MTc4NTQ3NTI2OX0.3Qb2UEqxcoMuK-qoK8EbnT5_IR-WRJgF17fzswX2hkQ","tokenType":"Bearer","expiresIn":"1h","user":{"id":2,"username":"user","role":"user"}}```
 <br><br><br>
 
 Attempt to create a project with missing information (POST /projects):
 ```bash
 curl -X POST http://localhost:3000/projects \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzE2NjksImV4cCI6MTc4NTQ3NTI2OX0.3Qb2UEqxcoMuK-qoK8EbnT5_IR-WRJgF17fzswX2hkQ" \
+  -H "Authorization: Bearer " \
   -d '{"name": "", "description": "Final project for CS553"}'
 ```
 Output:  
@@ -213,26 +285,37 @@ Create a project (POST /projects):
 ```bash
 curl -X POST http://localhost:3000/projects \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzE2NjksImV4cCI6MTc4NTQ3NTI2OX0.3Qb2UEqxcoMuK-qoK8EbnT5_IR-WRJgF17fzswX2hkQ" \
+  -H "Authorization: Bearer " \
+  -d '{"name": "Checkpoint 2", "description": "Final project for CS553"}'
+```
+Output:  
+```{"id":1,"name":"Checkpoint 2","description":"Final project for CS553","ownerID":2,"createdAt":"2026-07-31T04:39:58.778Z"}```
+<br><br><br>
+
+Create another project (POST /projects):
+```bash
+curl -X POST http://localhost:3000/projects \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer " \
   -d '{"name": "Final", "description": "Final exam for CS553"}'
 ```
 Output:  
-```{"id":2,"name":"Final","description":"Final exam for CS553","ownerID":1,"createdAt":"2026-07-31T04:45:13.366Z"}```
+```{"id":2,"name":"Final","description":"Final exam for CS553","ownerID":2,"createdAt":"2026-07-31T04:45:13.366Z"}```
 <br><br><br>
 
 Fetch all projects (GET /projects):
 ```bash
 curl -X GET http://localhost:3000/projects \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzE2NjksImV4cCI6MTc4NTQ3NTI2OX0.3Qb2UEqxcoMuK-qoK8EbnT5_IR-WRJgF17fzswX2hkQ"
+  -H "Authorization: Bearer "
 ```
 Output:  
-```[{"id":1,"name":"Checkpoint 2","description":"Final project for CS553","ownerID":1,"createdAt":"2026-07-31T04:39:58.778Z"},{"id":2,"name":"Final","description":"Final exam for CS553","ownerID":1,"createdAt":"2026-07-31T04:45:13.366Z"}]```
+```[{"id":1,"name":"Checkpoint 2","description":"Final project for CS553","ownerID":2,"createdAt":"2026-07-31T04:39:58.778Z"},{"id":2,"name":"Final","description":"Final exam for CS553","ownerID":2,"createdAt":"2026-07-31T04:45:13.366Z"}]```
 <br><br><br>
 
 Fetch a project by its ID with an invalid ID (GET /projects/:id):
 ```bash
 curl -X GET http://localhost:3000/projects/10 \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzE2NjksImV4cCI6MTc4NTQ3NTI2OX0.3Qb2UEqxcoMuK-qoK8EbnT5_IR-WRJgF17fzswX2hkQ"
+  -H "Authorization: Bearer "
 ```
 Output:  
 ```{"error":"Project not found."}```
@@ -241,18 +324,18 @@ Output:
 Fetch a project by its ID (GET /projects/:id):
 ```bash
 curl -X GET http://localhost:3000/projects/1 \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzE2NjksImV4cCI6MTc4NTQ3NTI2OX0.3Qb2UEqxcoMuK-qoK8EbnT5_IR-WRJgF17fzswX2hkQ"
+  -H "Authorization: Bearer "
 ```
 Output:  
-```{"id":1,"name":"Checkpoint 2","description":"Final project for CS553","ownerID":1,"createdAt":"2026-07-31T04:39:58.778Z"}```
+```{"id":1,"name":"Checkpoint 2","description":"Final project for CS553","ownerID":2,"createdAt":"2026-07-31T04:39:58.778Z"}```
 <br><br><br>
 
 Attempt to create a task with missing data (POST /tasks):  
 ```bash
 curl -X POST http://localhost:3000/tasks \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM" \
-  -d '{"title": "", "description": "Enter curl commands and outputs into README.md", "status": "todo", "project_id": "1", "assigned_to": "1"}'
+  -H "Authorization: Bearer " \
+  -d '{"title": "", "description": "Enter curl commands and outputs into README.md", "status": "todo", "project_id": "1", "assigned_to": "2"}'
 ```
 Output:  
 ```{"error":"A title and status are required."}```
@@ -262,8 +345,8 @@ Attempt to create a task with invalid project ID (POST /tasks):
 ```bash
 curl -X POST http://localhost:3000/tasks \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM" \
-  -d '{"title": "Create test plan", "description": "Enter curl commands and outputs into README.md", "status": "todo", "project_id": "10", "assigned_to": "1"}'
+  -H "Authorization: Bearer " \
+  -d '{"title": "Create test plan", "description": "Enter curl commands and outputs into README.md", "status": "todo", "project_id": "10", "assigned_to": "2"}'
 ```
 Output:  
 ```{"error":"Invalid project ID."}```
@@ -273,7 +356,7 @@ Attempt to create a task with invalid user ID (POST /tasks):
 ```bash
 curl -X POST http://localhost:3000/tasks \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM" \
+  -H "Authorization: Bearer " \
   -d '{"title": "Create test plan", "description": "Enter curl commands and outputs into README.md", "status": "todo", "project_id": "1", "assigned_to": "10"}'
 ```
 Output:  
@@ -284,41 +367,37 @@ Create a task and associate it with a project (POST /tasks):
 ```bash
 curl -X POST http://localhost:3000/tasks \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzE2NjksImV4cCI6MTc4NTQ3NTI2OX0.3Qb2UEqxcoMuK-qoK8EbnT5_IR-WRJgF17fzswX2hkQ" \
-  -d '{"title": "Create test plan", "description": "Enter curl commands and outputs into README.md", "status": "todo", "project_id": "1", "assigned_to": "1"}'
+  -H "Authorization: Bearer " \
+  -d '{"title": "Create test plan", "description": "Enter curl commands and outputs into README.md", "status": "todo", "project_id": "1", "assigned_to": "2"}'
 ```
 Output:  
-```{"id":1,"title":"Create test plan","description":"Enter curl commands and outputs into README.md","status":"todo","project_id":1,"assigned_to":1,"created_at":"2026-07-31T04:50:53.645Z","updated_at":"2026-07-31T04:50:53.645Z"}```
+```{"id":1,"title":"Create test plan","description":"Enter curl commands and outputs into README.md","status":"todo","project_id":1,"assigned_to":2,"created_at":"2026-07-31T04:50:53.645Z","updated_at":"2026-07-31T04:50:53.645Z"}```
 <br><br><br>
 
 Create another task and associate it with a project (POST /tasks):  
 ```bash
 curl -X POST http://localhost:3000/tasks \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM" \
-  -d '{"title": "Answer reflection questions", "description": "Enter answers to reflection questions into README.md", "status": "todo", "project_id": "1", "assigned_to": "1"}'
+  -H "Authorization: Bearer " \
+  -d '{"title": "Answer reflection questions", "description": "Enter answers to reflection questions into README.md", "status": "todo", "project_id": "1", "assigned_to": "2"}'
 ```
 Output:  
-```{"id":2,"title":"Answer reflection questions","description":"Enter answers to reflection questions into README.md","status":"todo","project_id":1,"assigned_to":1,"created_at":"2026-07-31T04:53:44.248Z","updated_at":"2026-07-31T04:53:44.248Z"}```
+```{"id":2,"title":"Answer reflection questions","description":"Enter answers to reflection questions into README.md","status":"todo","project_id":1,"assigned_to":2,"created_at":"2026-07-31T04:53:44.248Z","updated_at":"2026-07-31T04:53:44.248Z"}```
 <br><br><br>
 
 Fetch all tasks (GET /tasks):  
 ```bash
 curl -X GET http://localhost:3000/tasks \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
-```
-```bash
-curl -X GET http://localhost:3000/tasks \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzE2NjksImV4cCI6MTc4NTQ3NTI2OX0.3Qb2UEqxcoMuK-qoK8EbnT5_IR-WRJgF17fzswX2hkQ"
+  -H "Authorization: Bearer "
 ```
 Output:  
-```[{"id":1,"title":"Create test plan","description":"Enter curl commands and outputs into README.md","status":"todo","projectID":1,"assignedTo":1,"createdAt":"2026-07-31T04:50:53.645Z","updatedAt":"2026-07-31T04:50:53.645Z"},{"id":2,"title":"Answer reflection questions","description":"Enter answers to reflection questions into README.md","status":"todo","projectID":1,"assignedTo":1,"createdAt":"2026-07-31T04:53:44.248Z","updatedAt":"2026-07-31T04:53:44.248Z"}]```
+```[{"id":1,"title":"Create test plan","description":"Enter curl commands and outputs into README.md","status":"todo","projectID":1,"assignedTo":2,"createdAt":"2026-07-31T04:50:53.645Z","updatedAt":"2026-07-31T04:50:53.645Z"},{"id":2,"title":"Answer reflection questions","description":"Enter answers to reflection questions into README.md","status":"todo","projectID":1,"assignedTo":2,"createdAt":"2026-07-31T04:53:44.248Z","updatedAt":"2026-07-31T04:53:44.248Z"}]```
 <br><br><br>
 
 Fetch a specific task by ID with invalid ID (GET /tasks/:id):  
 ```bash
 curl -X GET http://localhost:3000/tasks/10 \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM"
+  -H "Authorization: Bearer "
 ```
 Output:  
 ```{"error":"Task not found."}```
@@ -327,17 +406,17 @@ Output:
 Fetch a specific task by ID (GET /tasks/:id):  
 ```bash
 curl -X GET http://localhost:3000/tasks/1 \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzE2NjksImV4cCI6MTc4NTQ3NTI2OX0.3Qb2UEqxcoMuK-qoK8EbnT5_IR-WRJgF17fzswX2hkQ"
+  -H "Authorization: Bearer "
 ```
 Output:  
-```{"id":1,"title":"Create test plan","description":"Enter curl commands and outputs into README.md","status":"todo","projectID":1,"assignedTo":1,"createdAt":"2026-07-31T04:50:53.645Z","updatedAt":"2026-07-31T04:50:53.645Z"}```
+```{"id":1,"title":"Create test plan","description":"Enter curl commands and outputs into README.md","status":"todo","projectID":1,"assignedTo":2,"createdAt":"2026-07-31T04:50:53.645Z","updatedAt":"2026-07-31T04:50:53.645Z"}```
 <br><br><br>
 
 Attempt to update a task with a blank field (PATCH /tasks/:id):  
 ```bash
 curl -X PATCH http://localhost:3000/tasks/2 \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM" \
+  -H "Authorization: Bearer " \
   -d '{"status": ""}'
 ```
 Output:  
@@ -348,7 +427,7 @@ Attempt to update a task with an invalid project ID (PATCH /tasks/:id):
 ```bash
 curl -X PATCH http://localhost:3000/tasks/2 \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM" \
+  -H "Authorization: Bearer " \
   -d '{"project_id": "10"}'
 ```
 Output:  
@@ -359,7 +438,7 @@ Attempt to update a task with an invalid user ID (PATCH /tasks/:id):
 ```bash
 curl -X PATCH http://localhost:3000/tasks/2 \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM" \
+  -H "Authorization: Bearer " \
   -d '{"assigned_to": "10"}'
 ```
 Output:  
@@ -370,7 +449,7 @@ Attempt to update a task that does not exist (PATCH /tasks/:id):
 ```bash
 curl -X PATCH http://localhost:3000/tasks/10 \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM" \
+  -H "Authorization: Bearer " \
   -d '{"status": "done"}'
 ```
 Output:  
@@ -381,19 +460,17 @@ Update a task (PATCH /tasks/:id):
 ```bash
 curl -X PATCH http://localhost:3000/tasks/2 \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM" \
+  -H "Authorization: Bearer " \
   -d '{"status": "done"}'
 ```
 Output:  
-```{"id":2,"title":"Answer reflection questions","description":"Enter answers to reflection questions into README.md","status":"done","project_id":1,"assigned_to":1,"created_at":"2026-07-31T04:53:44.248Z","updated_at":"2026-07-31T05:37:27.392Z"}```
+```{"id":2,"title":"Answer reflection questions","description":"Enter answers to reflection questions into README.md","status":"done","project_id":1,"assigned_to":2,"created_at":"2026-07-31T04:53:44.248Z","updated_at":"2026-07-31T05:37:27.392Z"}```
 <br><br><br>
 
-## CAN ADD OTHER PATCH TESTS HERE
-
-Delete a task with an invalid ID (DELETE /tasks/:id):  
+Attempt to delete a task with an invalid ID (DELETE /tasks/:id):  
 ```bash
 curl -X DELETE http://localhost:3000/tasks/10 \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM"
+  -H "Authorization: Bearer "
 ```
 Output:  
 ```{"error":"Task not found."}```
@@ -402,7 +479,7 @@ Output:
 Delete a task (DELETE /tasks/:id):  
 ```bash
 curl -X DELETE http://localhost:3000/tasks/2 \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM"
+  -H "Authorization: Bearer "
 ```
 Output:  
 
@@ -411,8 +488,108 @@ Output:
 Check that the task was deleted (GET /tasks):
 ```bash
 curl -X GET http://localhost:3000/tasks \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODU0NzY1MTcsImV4cCI6MTc4NTQ4MDExN30.A9RzJH9nWJXUJFf2VlbByibXxeG_1aw3IXVlR3sR0qM"
+  -H "Authorization: Bearer "
 ```
 Output:  
-```[{"id":1,"title":"Create test plan","description":"Enter curl commands and outputs into README.md","status":"todo","projectID":3,"assignedTo":1,"createdAt":"2026-07-31T04:50:53.645Z","updatedAt":"2026-07-31T04:50:53.645Z"}]```
+```[{"id":1,"title":"Create test plan","description":"Enter curl commands and outputs into README.md","status":"todo","projectID":1,"assignedTo":2,"createdAt":"2026-07-31T04:50:53.645Z","updatedAt":"2026-07-31T04:50:53.645Z"}]```
 <br><br><br>
+
+Attempt to access user list (GET /users):
+```bash
+curl -X GET http://localhost:3000/users \
+  -H "Authorization: Bearer "
+```
+Output:  
+``````
+<br><br><br>
+
+Register a new user account (POST /auth/register):
+```bash
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name": "user2", "email": "useremail@gmail.com", "password": "new-password"}'
+```
+Output:  
+``````
+<br><br><br>
+
+Login as the new user (POST /auth/login):
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "user2", "password": "new-password"}'
+```
+Output:  
+``````
+<br><br><br>
+
+Attempt to modify a resource not owned by the current user (PATCH /tasks/:id):
+```bash
+curl -X PATCH http://localhost:3000/tasks/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer " \
+  -d '{"status": "done"}'
+```
+Output:  
+``````
+<br><br><br>
+
+Attempt to delete a resource not owned by the current user (DELETE /task/:id):
+Delete a task (DELETE /tasks/:id):  
+```bash
+curl -X DELETE http://localhost:3000/tasks/1 \
+  -H "Authorization: Bearer "
+```
+Output:  
+
+<br><br><br>
+
+Login as the admin (POST /auth/login):
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin-password"}'
+```
+Output:  
+``````
+<br><br><br>
+
+As an admin, access user list (GET /users):
+```bash
+curl -X GET http://localhost:3000/users \
+  -H "Authorization: Bearer "
+```
+Output:  
+``````
+<br><br><br>
+
+As an admin, modify a resource not owned by the admin (PATCH /tasks/:id):
+```bash
+curl -X PATCH http://localhost:3000/tasks/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer " \
+  -d '{"status": "done"}'
+```
+Output:  
+``````
+<br><br><br>
+
+As an admin, delete a resource not owned by the admin (DELETE /task/:id):
+Delete a task (DELETE /tasks/:id):  
+```bash
+curl -X DELETE http://localhost:3000/tasks/1 \
+  -H "Authorization: Bearer "
+```
+Output:  
+
+<br><br><br>
+
+Check that the task was deleted (GET /tasks):
+```bash
+curl -X GET http://localhost:3000/tasks \
+  -H "Authorization: Bearer "
+```
+Output:  
+``````
+<br><br><br>
+
