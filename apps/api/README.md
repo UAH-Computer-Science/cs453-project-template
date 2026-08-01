@@ -90,6 +90,20 @@ Milestone 4 — Expand the Data Model
 Milestone 5 — Authentication  
 Milestone 6 — Authorization and Ownership  
 
+## How to install dependencies  
+```bash
+cd cs453-project-template/apps/api
+npm install
+```
+
+## How to configure the database connection  
+With docker running on your machine:
+```bash
+docker-compose down -v
+docker-compose up -d
+```
+The first command clears all previous database data from the machine.
+
 ## How to configure the JWT secret.  
 The JWT secret is configured in your .env file, which should live in the top folder of the project ```cs453-project-template```. I have included a .env.example file to show what should generally be in the .env file. The .env.example file has:
 ```
@@ -97,7 +111,7 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cs453
 PORT=3000
 JWT_SECRET=replace-this-value
 ```
-When creating your .env file, you should replace the JWT_SECRET value "replace-this-value" with your own long, random string. This is for security purposes. A long, random string cannot be guessed easily by a malicious script trying to crack the secret value.  
+When creating your .env file, you should replace the JWT_SECRET value "replace-this-value" with your own long, random string. This is for security purposes. A long, random string cannot be guessed easily by a malicious script trying to crack the secret value.   
 
 ## How to create or update the database tables.  
 The user should run
@@ -113,7 +127,13 @@ to restart the database, and
 ```bash
 npm run dev
 ```
-to start the server after, which automatically runs the ```schema.sql``` script to create the tables.
+to start the server after, which automatically runs the ```schema.sql``` script. The server creates the tables automatically through the function ```initializeDatabase()```. There are no special steps for the user to take.  
+
+## How to start the server  
+```bash
+npm run dev
+```
+The server runs on ```http://localhost:3000```.   
 
 ## How to create an administrator account.  
 There is a script called ```seedAdmin.ts``` located in cs453-project-template/apps/api/src/db that creates an admin user. To run this script, run
@@ -124,7 +144,15 @@ in a terminal after running ```npm run dev```. This script has values coded into
 ```bash
 ADMIN_NAME="NewName" ADMIN_EMAIL="admin@yourdomain.com" ADMIN_PASSWORD="NewPasswordYouChose" npm run seed:admin
 ```
-This script can be run at any time.  
+This script can be run at any time after the server has been started.  
+
+## How to run tests  
+If vitest is installed, you can run the tests that cover Checkpoint 1.  
+In a different terminal also pointing to ```cs453-project-template/apps/api```
+```bash
+npm test
+```
+For all tests, refer to the test plan at the end of this document. Sample CURL commands are given that show all the features of the application when run in order.  
 
 ## How to register and log in.  
 Once the server is running, the user can use CURL commands to register and login. The route for registering is POST /auth/register, and the route for logging in is POST /auth/login. Registration requires a username, email, and password passed in as a JSON object, and logging in requires a registered username and password passed in as a JSON object. Example CURL commands are below:  
@@ -140,7 +168,7 @@ curl -X POST http://localhost:3000/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "user", "password": "user-password"}'
 ```
-After the user logs in, the application will send a Bearer token, which will allow the user to access the application.  
+After the user logs in, the application will send a Bearer token, which will allow the user to access the routes within the application.  
 
 ## How to send a JWT with a request.  
 Once you login and receive the Bearer token, you will use that for most of the remaining routes. The bearer is passed in the request with the -H modifier. Here is an example of a GET /tasks request using the bearer token:
@@ -175,7 +203,7 @@ The user should replace ```YOUR_TOKEN_HERE``` with their JWT token they received
 *Requires authentication
 
 ## Which routes or operations require the admin role.  
-The only implemented route that requires the admin role is GET /users. Normal users aren't allowed to access the list of users. Admins, however, can modify and delete tasks that they don't own, a privilege that regular users do not have.
+The only implemented route that requires the admin role is GET /users. Normal users aren't allowed to access the list of users, but admins can. Admins can also modify and delete tasks that they don't own, a privilege that regular users do not have.
 
 ## What ownership or authorization rules your application enforces.  
 * A normal user can create projects and tasks freely.
@@ -202,10 +230,10 @@ A 401 response means "Unauthorized", while a 403 response returns "Forbidden". I
 The Unauthorized error is thrown when a user attempts to login with invalid credentials, or when the JWT is not passed in with the request, meaning the system cannot authenticate who is sending the request. The Forbidden error is thrown when a user attempts to perform an operation that is above their role level. If a normal user attempts to view all users, this error will be thrown as viewing user data is a privilege to users whose role is "admin". Likewise, if a user attempts to delete a task that does not belong to them, this error will also be thrown.  
 
 **5. Where does your application perform role or ownership checks?**  
-I have authentication and authorization middleware stored in ```cs453-project-template/apps/api/src/middleware```. ```authentication.ts``` has the function ```authenticateToken()``` which is called in every single route. Other than GET /health, GET /health-db, POST /auth/register, and POST /auth/login, there is nothing in our application that can be done without the user being logged in. ```authentication.ts``` also has the function ```canModify()``` which determines if the user is allowed to update or delete an existing resource. It accepts the current user's ID and the ID of the owner of the resource and returns TRUE if these ID's are identical or if the user is an "admin" role, otherwise it returns false. Finally, ```authorize.ts``` holds the function ```requireRole()``` which is used for the routes that only "admin" roles can perform (such as returning all users).  
+I have authentication and authorization middleware stored in ```cs453-project-template/apps/api/src/middleware```. ```authentication.ts``` has the function ```authenticateToken()``` which is called in most of the routes. Other than GET /health, GET /health-db, POST /auth/register, and POST /auth/login, there is nothing in our application that can be done without the user being logged in. ```authentication.ts``` also has the function ```canModify()``` which determines if the user is allowed to update or delete an existing resource. It accepts the current user's ID and the ID of the owner of the resource and returns TRUE if these ID's are identical or if the user is an "admin" role, otherwise it returns false. Finally, ```authorize.ts``` holds the function ```requireRole()``` which is used for the routes that only "admin" roles can perform (such as returning all users).  
 
 **6. How are users, projects, and tasks related in your database?**  
-First, we have our ```users``` table that holds the fields ID, name, email, password_hash, role, and created_at. We then have our ```projects``` table, which is connected to the ```users``` table through the foreign key owner_id. This represents the ID of the user who created the project. The ```projects``` table also has fields ID, name, description, and created_at. Finally, we have our ```tasks``` table, which holds the fields ID, title, description, status, created_at, and updated_at. It also holds the foreign key project_id, which references the ```project``` table's primary key "id". This represents the project that the task is associated with. The ```tasks``` table also holds the foreign key assigned_to, which references the ```user``` table's primary key "id". This represents a user in the database that is to complete the task.  
+First, we have our ```users``` table that holds the fields ID, name, email, password_hash, role, and created_at. We then have our ```projects``` table, which is connected to the ```users``` table through the foreign key owner_id. This represents the ID of the user who created the project. The ```projects``` table also has fields ID, name, description, and created_at. Finally, we have our ```tasks``` table, which holds the fields ID, title, description, status, created_at, and updated_at. It also holds the foreign key project_id, which references the ```project``` table's primary key "id". This represents the project that the task is associated with. The ```tasks``` table also holds the foreign key assigned_to, which references the ```user``` table's primary key "id". This represents a user in the database that is assigned to complete the task.  
 Basically, each project has an owner and also has tasks associated with it. Each task is assigned to its project and has a user assigned to complete it.  
 
 **7. What was the hardest part of adding authentication or authorization?**  
