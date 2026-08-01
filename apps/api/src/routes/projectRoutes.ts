@@ -28,7 +28,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response, next: Ne
     try {
         const name = req.body?.name?.trim();
         const description = req.body?.description?.trim();
-        const ownerID = parseInt(req.user!.sub, 10);
+        const ownerID = req.user!.id;
 
         const result = await ProjectService.createProject(name, description, ownerID);
         res.status(201).json(result);
